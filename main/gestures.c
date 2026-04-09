@@ -8,11 +8,6 @@
 #include "sdkconfig.h"
 #include "gestures.h"
 
-#if 0
-	Current_LSB = 1A / 2^15
-	CAL = 0.00512 / 1A / 0.1ohm = 1677
-#endif
-
 static const char *TAG = "AMTR";
 
 /* I2C Configuration (configurable via menuconfig) */
@@ -25,11 +20,25 @@ static const char *TAG = "AMTR";
 /* Display Configuration (configurable via menuconfig) */
 #define I2C_DISPLAY_ADDRESS  CONFIG_I2C_DISPLAY_ADDRESS    /*!< Display I2C address */
 
+VL53L8CX_Configuration 	Dev;			/* Sensor configuration */
+VL53L8CX_ResultsData 	Results;		/* Results data from VL53L8CX */
+
 static i2c_master_bus_handle_t i2c_bus_handle = NULL;   /*!< I2C master bus handle */
 static i2c_master_dev_handle_t display_dev_handle = NULL;  /*!< Display device handle */
 static QueueHandle_t qscr;
 static u8g2_t u8g2;
 static char buff[35];
+
+i2c_master_bus_config_t i2c_bus_config = {
+	.i2c_port = I2C_MASTER_NUM,
+	.sda_io_num = I2C_MASTER_SDA_IO,
+	.scl_io_num = I2C_MASTER_SCL_IO,
+	.clk_source = I2C_CLK_SRC_DEFAULT,
+	.glitch_ignore_cnt = 7,
+	.intr_priority = 0,
+	.trans_queue_depth = 0,  /* 0 = synchronous mode */
+	.flags.enable_internal_pullup = true,
+};
 
 /**
  * @brief U8X8 I2C communication callback function
@@ -204,16 +213,11 @@ void display_update_task(void *ignore) {
  */
 void app_main(void)
 {
-    i2c_master_bus_config_t bus_config = {
-        .i2c_port = I2C_MASTER_NUM,
-        .sda_io_num = I2C_MASTER_SDA_IO,
-        .scl_io_num = I2C_MASTER_SCL_IO,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .intr_priority = 0,
-        .trans_queue_depth = 0,  /* 0 = synchronous mode */
-        .flags.enable_internal_pullup = true,
-    };
+    /*********************************/
+    /*   VL53L8CX ranging variables  */
+    /*********************************/
+
+    uint8_t status, isAlive, isReady, i;
 
 	ESP_LOGI(TAG,"SDA GPIO: %d, SCL GPIO: %d",I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO);
 
@@ -221,7 +225,7 @@ void app_main(void)
     qscr = xQueueCreate(20, sizeof(uint32_t));
 
     /* Create I2C master bus */
-    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &i2c_bus_handle));
+    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_config, &i2c_bus_handle));
 
     /* Initialize U8G2 for display type */
 	u8g2_Setup_sh1107_i2c_128x128_f(
@@ -243,15 +247,92 @@ void app_main(void)
             NULL    // task handle
 	);
 
-	/* create the ina226 device */
-    // ESP_ERROR_CHECK(ina226_init(i2c_bus_handle));
+    //Define the i2c device configuration
+    i2c_device_config_t dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = VL53L8CX_DEFAULT_I2C_ADDRESS >> 1,
+            .scl_speed_hz = VL53L8CX_MAX_CLK_SPEED,
+    };
 
-	uint32_t data = 10;
 
-    while (1) {
-		// ina226_readall(&data);
+    /*********************************/
+    /*      Customer platform        */
+    /*********************************/
 
-		xQueueSend(qscr, &data, 0);
-		vTaskDelay(pdMS_TO_TICKS(2000));    /* delay for showing static display */
+    Dev.platform.bus_config = i2c_bus_config;
+
+    //Register the device
+    i2c_master_bus_add_device(i2c_bus_handle, &dev_cfg, &Dev.platform.handle);
+
+    /* (Optional) Reset sensor */
+    Dev.platform.reset_gpio = GPIO_NUM_18;
+    Reset_Sensor(&(Dev.platform));
+
+    /*********************************/
+    /*   Power on sensor and init    */
+    /*********************************/
+
+    /* (Optional) Check if there is a VL53L8CX sensor connected */
+    status = vl53l8cx_is_alive(&Dev, &isAlive);
+
+    if(!isAlive || status) {
+        ESP_LOGE(TAG, "VL53L8CX not detected at requested address\n");
+        return;
     }
+
+    /* (Mandatory) Init VL53L8CX sensor */
+    status = vl53l8cx_init(&Dev);
+
+    if(status) {
+        ESP_LOGE(TAG, "VL53L8CX ULD Loading failed\n");
+        return;
+    }
+
+    ESP_LOGI(TAG, "VL53L8CX ULD ready ! (Version : %s)\n", VL53L8CX_API_REVISION);
+
+
+    /*********************************/
+    /*   Reduce RAM & I2C access	 */
+    /*********************************/
+
+    /* Results can be tuned in order to reduce I2C access and RAM footprints.
+     * The 'platform.h' file contains macros used to disable output. If user declare
+     * one of these macros, the results will not be sent through I2C, and the array will not
+     * be created into the VL53L8CX_ResultsData structure.
+     * For the minimum size, ST recommends 1 targets per zone, and only keep distance_mm,
+     * target_status, and nb_target_detected. The following macros can be defined into file 'platform.h':
+     *
+     * #define VL53L8CX_DISABLE_AMBIENT_PER_SPAD
+     * #define VL53L8CX_DISABLE_NB_SPADS_ENABLED
+     * #define VL53L8CX_DISABLE_SIGNAL_PER_SPAD
+     * #define VL53L8CX_DISABLE_RANGE_SIGMA_MM
+     * #define VL53L8CX_DISABLE_REFLECTANCE_PERCENT
+     * #define VL53L8CX_DISABLE_MOTION_INDICATOR
+     */
+
+    status = vl53l8cx_start_ranging(&Dev);
+
+	while (1) {
+
+		do {
+			status = vl53l8cx_check_data_ready(&Dev, &isReady);
+		} while (!isReady);
+
+		vl53l8cx_get_ranging_data(&Dev, &Results);
+
+		/* As the sensor is set in 4x4 mode by default, we have a total
+		 * of 16 zones to print. For this example, only the data of first zone are
+		 * print */
+		printf("Print data no : %3u\n", Dev.streamcount);
+		for(i = 0; i < 16; i++)
+		{
+			printf("Zone : %3d, Status : %3u, Distance : %4d mm\n",
+					i,
+					Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE*i],
+					Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
+		}
+
+		//xQueueSend(qscr, &data, 0);
+		vTaskDelay(pdMS_TO_TICKS(100));    /* delay for showing static display */
+	}
 }
