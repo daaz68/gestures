@@ -9,7 +9,7 @@
 #include "sdkconfig.h"
 #include "screen.h"
 
-mat_circle_t mat_circle;
+circle_t *mat_circle;
 static u8g2_t *u8g2 = NULL;
 bool mat_init = 0;
 uint16_t scr_sq_size, mat_dim;
@@ -46,10 +46,8 @@ void mat_populate(void) {
 
 	for( i=0; i< mat_dim; i++) {
 		for( j=0; j< mat_dim; j++) {
-			mat_circle[i][j].x = i * rmax + rmax/2 - 1;
-			mat_circle[i][j].y = j * rmax + rmax/2 - 1;
-			mat_circle[i][j].radius = 0;
-			mat_circle[i][j].status = 0;
+			mat_circle[i*mat_dim + j].x = i * rmax + rmax/2 - 1;
+			mat_circle[i*mat_dim + j].y = j * rmax + rmax/2 - 1;
 		}
 	}
 }
@@ -65,6 +63,14 @@ void mat_setup(u8g2_t *u8g2_in, uint16_t resolution, uint16_t divisions) {
 
 	mat_init = true;
 
+	mat_circle = malloc(sizeof(circle_t) * divisions * divisions);
+
+	if(!mat_circle) {
+		ESP_LOGE("TAG", "Error allocating memory");
+		mat_init = false;
+		return;
+	}
+
 	mat_populate();
 }
 
@@ -75,7 +81,7 @@ void mat_setup(u8g2_t *u8g2_in, uint16_t resolution, uint16_t divisions) {
 void mat_plot(VL53L8CX_ResultsData 	results) {
 	uint16_t i, j;
 	uint16_t r;
-	float af = 14.0/1600.0;
+	float af = 7.0/1600.0;
 	float rf;
 
 	if(!mat_init)
@@ -97,13 +103,15 @@ void mat_plot(VL53L8CX_ResultsData 	results) {
 		}
 #endif
 
-	for( i=0; i< MAT_DIM; i++) {
-		for( j=0; j< MAT_DIM; j++) {
+	for( i=0; i< mat_dim; i++) {
+		for( j=0; j< mat_dim; j++) {
 			r = results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE * (i * mat_dim + j)];
 			rf = (float)r * af;
 			r = (uint16_t)rf;
-			u8g2_DrawDisc(u8g2, mat_circle[i][j].x, mat_circle[i][j].y,
-				r, U8G2_DRAW_ALL);
+			if (r > 7) r = 7;
+			r = 7 - r;
+			u8g2_DrawDisc(u8g2, mat_circle[i*mat_dim + j].x, mat_circle[i*mat_dim +j].y, r, U8G2_DRAW_ALL);
+			//u8g2_DrawCircle(u8g2, mat_circle[i*mat_dim + j].x, mat_circle[i*mat_dim +j].y, r, U8G2_DRAW_ALL);
 		}
 	}
 

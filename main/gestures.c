@@ -17,6 +17,13 @@ static const char *TAG = "AMTR";
 #define I2C_FREQ_HZ       CONFIG_I2C_MASTER_FREQUENCY      /*!< I2C master clock frequency */
 #define I2C_TIMEOUT_MS    1000                             /*!< I2C master timeout */
 
+#define VL53L8CX_DISABLE_AMBIENT_PER_SPAD
+#define VL53L8CX_DISABLE_NB_SPADS_ENABLED
+#define VL53L8CX_DISABLE_SIGNAL_PER_SPAD
+#define VL53L8CX_DISABLE_RANGE_SIGMA_MM
+#define VL53L8CX_DISABLE_REFLECTANCE_PERCENT
+#define VL53L8CX_DISABLE_MOTION_INDICATOR
+
 /* Display Configuration (configurable via menuconfig) */
 #define I2C_DISPLAY_ADDRESS  CONFIG_I2C_DISPLAY_ADDRESS    /*!< Display I2C address */
 
@@ -194,25 +201,14 @@ void update_display(void){
 }
 
 /**
- * @brief update display task
- *
- */
-void display_update_task(void *ignore) {
-	uint32_t data;
-
-    while(1) {
-        xQueueReceive(qscr, &data, portMAX_DELAY);
-		update_display();
-    }
-}
-
-/**
  * @brief Main application entry point
  *
  * This function initializes the U8G2 library, configures the display controller,
  */
 void app_main(void)
 {
+	vTaskPrioritySet(NULL, 24);
+
     /*********************************/
     /*   VL53L8CX ranging variables  */
     /*********************************/
@@ -236,16 +232,8 @@ void app_main(void)
 
     u8g2_InitDisplay(&u8g2);
     u8g2_SetPowerSave(&u8g2, 0);  /* Wake up display */
+	u8g2_SetDisplayRotation(&u8g2, U8G2_R1);
 	u8g2_ClearBuffer(&u8g2);
-
-	/* Create the display update task */
-	xTaskCreate(display_update_task,
-            "Display update", // Name of task
-            4096, // Stack size
-            NULL,   // Task data
-            10,         // Priority
-            NULL    // task handle
-	);
 
     //Define the i2c device configuration
     i2c_device_config_t dev_cfg = {
@@ -266,6 +254,7 @@ void app_main(void)
 
     /* (Optional) Reset sensor */
     Dev.platform.reset_gpio = GPIO_NUM_18;
+
     Reset_Sensor(&(Dev.platform));
 
     /*********************************/
@@ -287,6 +276,8 @@ void app_main(void)
         ESP_LOGE(TAG, "VL53L8CX ULD Loading failed\n");
         return;
     }
+
+	status = vl53l8cx_set_resolution(&Dev, VL53L8CX_RESOLUTION_8X8);
 
     ESP_LOGI(TAG, "VL53L8CX ULD ready ! (Version : %s)\n", VL53L8CX_API_REVISION);
 
@@ -312,7 +303,7 @@ void app_main(void)
 
     status = vl53l8cx_start_ranging(&Dev);
 
-	mat_setup(&u8g2, 128, 4);
+	mat_setup(&u8g2, 128, 8);
 
 	while (1) {
 
