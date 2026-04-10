@@ -217,7 +217,7 @@ void app_main(void)
     /*   VL53L8CX ranging variables  */
     /*********************************/
 
-    uint8_t status, isAlive, isReady, i;
+    uint8_t status, isAlive, isReady;
 
 	ESP_LOGI(TAG,"SDA GPIO: %d, SCL GPIO: %d",I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO);
 
@@ -312,6 +312,8 @@ void app_main(void)
 
     status = vl53l8cx_start_ranging(&Dev);
 
+	mat_setup(&u8g2, 128, 4);
+
 	while (1) {
 
 		do {
@@ -320,19 +322,9 @@ void app_main(void)
 
 		vl53l8cx_get_ranging_data(&Dev, &Results);
 
-		/* As the sensor is set in 4x4 mode by default, we have a total
-		 * of 16 zones to print. For this example, only the data of first zone are
-		 * print */
-		printf("Print data no : %3u\n", Dev.streamcount);
-		for(i = 0; i < 16; i++)
-		{
-			printf("Zone : %3d, Status : %3u, Distance : %4d mm\n",
-					i,
-					Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE*i],
-					Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
-		}
-
 		//xQueueSend(qscr, &data, 0);
-		vTaskDelay(pdMS_TO_TICKS(100));    /* delay for showing static display */
+		mat_plot(Results);
+
+		//vTaskDelay(pdMS_TO_TICKS(100));    /* delay for showing static display */
 	}
 }
