@@ -89,13 +89,15 @@ void mat_setup(u8g2_t *u8g2_in, uint16_t resolution, uint16_t divisions) {
 }
 
 
+#define MIN_RADIUS 14
+#define MAX_DISTANCE 300.0
 /**
  * @brief Plot the data
  */
 void mat_plot(VL53L8CX_ResultsData 	results) {
 	uint16_t i, j;
 	uint16_t r;
-	float af = 8.0/300.0;
+	float af = MIN_RADIUS/MAX_DISTANCE;
 	float rf;
 
 	if(!mat_init)
@@ -108,8 +110,8 @@ void mat_plot(VL53L8CX_ResultsData 	results) {
 			r = results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE * (i * mat_dim + j)];
 			rf = (float)r * af;
 			r = (uint16_t)rf;
-			if (r > 8) r = 8;
-			r = 8 - r;
+			if (r > MIN_RADIUS) r = MIN_RADIUS;
+			r = MIN_RADIUS - r;
 			u8g2_DrawDisc(u8g2, mat_circle[i*mat_dim + j].x, mat_circle[i*mat_dim +j].y, r, U8G2_DRAW_ALL);
 			//u8g2_DrawCircle(u8g2, mat_circle[i*mat_dim + j].x, mat_circle[i*mat_dim +j].y, r, U8G2_DRAW_ALL);
 		}
