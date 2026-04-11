@@ -81,27 +81,13 @@ void mat_setup(u8g2_t *u8g2_in, uint16_t resolution, uint16_t divisions) {
 void mat_plot(VL53L8CX_ResultsData 	results) {
 	uint16_t i, j;
 	uint16_t r;
-	float af = 7.0/1600.0;
+	float af = 7.0/400.0;
 	float rf;
 
 	if(!mat_init)
 		return;
 
 	u8g2_ClearBuffer(u8g2);
-
-#if 0
-		/* As the sensor is set in 4x4 mode by default, we have a total
-		 * of 16 zones to print. For this example, only the data of first zone are
-		 * print */
-		printf("Print data no : %3u\n", Dev.streamcount);
-		for(i = 0; i < 16; i++)
-		{
-			printf("Zone : %3d, Status : %3u, Distance : %4d mm\n",
-					i,
-					Results.target_status[VL53L8CX_NB_TARGET_PER_ZONE*i],
-					Results.distance_mm[VL53L8CX_NB_TARGET_PER_ZONE*i]);
-		}
-#endif
 
 	for( i=0; i< mat_dim; i++) {
 		for( j=0; j< mat_dim; j++) {
@@ -111,7 +97,6 @@ void mat_plot(VL53L8CX_ResultsData 	results) {
 			if (r > 7) r = 7;
 			r = 7 - r;
 			u8g2_DrawDisc(u8g2, mat_circle[i*mat_dim + j].x, mat_circle[i*mat_dim +j].y, r, U8G2_DRAW_ALL);
-			//u8g2_DrawCircle(u8g2, mat_circle[i*mat_dim + j].x, mat_circle[i*mat_dim +j].y, r, U8G2_DRAW_ALL);
 		}
 	}
 

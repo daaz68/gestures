@@ -17,13 +17,6 @@ static const char *TAG = "AMTR";
 #define I2C_FREQ_HZ       CONFIG_I2C_MASTER_FREQUENCY      /*!< I2C master clock frequency */
 #define I2C_TIMEOUT_MS    1000                             /*!< I2C master timeout */
 
-#define VL53L8CX_DISABLE_AMBIENT_PER_SPAD
-#define VL53L8CX_DISABLE_NB_SPADS_ENABLED
-#define VL53L8CX_DISABLE_SIGNAL_PER_SPAD
-#define VL53L8CX_DISABLE_RANGE_SIGMA_MM
-#define VL53L8CX_DISABLE_REFLECTANCE_PERCENT
-#define VL53L8CX_DISABLE_MOTION_INDICATOR
-
 /* Display Configuration (configurable via menuconfig) */
 #define I2C_DISPLAY_ADDRESS  CONFIG_I2C_DISPLAY_ADDRESS    /*!< Display I2C address */
 
@@ -32,7 +25,6 @@ VL53L8CX_ResultsData 	Results;		/* Results data from VL53L8CX */
 
 static i2c_master_bus_handle_t i2c_bus_handle = NULL;   /*!< I2C master bus handle */
 static i2c_master_dev_handle_t display_dev_handle = NULL;  /*!< Display device handle */
-static QueueHandle_t qscr;
 static u8g2_t u8g2;
 static char buff[35];
 
@@ -213,12 +205,9 @@ void app_main(void)
     /*   VL53L8CX ranging variables  */
     /*********************************/
 
-    uint8_t status, isAlive, isReady;
+    uint8_t status, isAlive, isReady, freq = 15;
 
 	ESP_LOGI(TAG,"SDA GPIO: %d, SCL GPIO: %d",I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO);
-
-	/* Create the display queue */
-    qscr = xQueueCreate(20, sizeof(uint32_t));
 
     /* Create I2C master bus */
     ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_config, &i2c_bus_handle));
@@ -278,6 +267,7 @@ void app_main(void)
     }
 
 	status = vl53l8cx_set_resolution(&Dev, VL53L8CX_RESOLUTION_8X8);
+	status = vl53l8cx_set_ranging_frequency_hz(&Dev, freq);
 
     ESP_LOGI(TAG, "VL53L8CX ULD ready ! (Version : %s)\n", VL53L8CX_API_REVISION);
 
@@ -313,7 +303,6 @@ void app_main(void)
 
 		vl53l8cx_get_ranging_data(&Dev, &Results);
 
-		//xQueueSend(qscr, &data, 0);
 		mat_plot(Results);
 
 		//vTaskDelay(pdMS_TO_TICKS(100));    /* delay for showing static display */
