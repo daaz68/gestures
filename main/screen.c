@@ -15,27 +15,39 @@ bool mat_init = 0;
 uint16_t scr_sq_size, mat_dim;
 
 /**
- * @brief Rotates a given line left/right
- * @param(uint16_t) dir: 0 = rotate left, 1 = rotate right
+ * Helper function to reverse an array in place
  */
-void mat_rotate_line(uint16_t line, uint16_t dir, uint16_t count) {
-	circle_t tmp;
+void mat_reverse_array(circle_t *arr, int n) {
+    for (int i = 0; i < n / 2; i++) {
+        circle_t temp = arr[i];
+        arr[i] = arr[n - 1 - i];
+        arr[n - 1 - i] = temp;
+    }
+}
 
-	if ( dir == 0 ) {
-		tmp = mat_circle[line * mat_dim];
-		for( int cnt=0; cnt < count; cnt++){
-			for( int i=0; i < (mat_dim - 1); i++)
-				mat_circle[line * mat_dim + i] = mat_circle[line * mat_dim + i + 1];
-			mat_circle[(line + 1) * mat_dim - 1] = tmp;
-		}
-	} else {
-		tmp = mat_circle[(line + 1) * mat_dim - 1];
-		for( int cnt=0; cnt < count; cnt++){
-			for( int i=(mat_dim - 1); i > 0; i--)
-				mat_circle[line * mat_dim + i] = mat_circle[line * mat_dim + i - 1];
-			mat_circle[line * mat_dim] = tmp;
-		}
-	}
+/**
+ * Rotates a row in a 2D matrix left or right.
+ *
+ * @param row Pointer to the array (row) to rotate
+ * @param len Length of the row
+ * @param shift Number of positions to rotate (positive = right, negative = left)
+ */
+void mat_rotate_row(circle_t *row, int len, int shift) {
+    if (len <= 1) return;
+
+    // Normalize shift to be within [0, len-1]
+    shift %= len;
+    if (shift < 0) {
+        shift += len;  // Convert negative shift to equivalent positive right shift
+    }
+
+    // If shift is 0, no rotation needed
+    if (shift == 0) return;
+
+    // Use the reversal algorithm for efficient O(n) time, O(1) space rotation
+    mat_reverse_array(row, len);
+    mat_reverse_array(row, shift);
+    mat_reverse_array(row + shift, len - shift);
 }
 
 /**
@@ -63,7 +75,7 @@ void mat_populate(void) {
 		}
 	}
 	for( i=0; i< mat_dim; i++)
-		mat_rotate_line(i, 1, 2);
+		mat_rotate_row(&mat_circle[i*mat_dim],mat_dim,2);
 }
 
 /**
