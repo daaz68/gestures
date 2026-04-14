@@ -34,7 +34,7 @@ menu "Gestures Configuration"
 
     config I2C_MASTER_FREQUENCY
         int "Master Frequency"
-        default 400000
+        default 1000000
         help
             I2C Speed of Master device.
 
