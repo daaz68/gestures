@@ -8,6 +8,19 @@
 #include "sdkconfig.h"
 #include "gestures.h"
 
+#if 0
+   GND: Ground (0V)
+   VCC: Power Supply (3.3V or 5V, check if your module has a regulator)
+19 SCL (or CLK/SCK): SPI Clock Signal
+18 SDA (or MOSI/SDI): SPI Serial Data Input (MOSI)
+ 2 RST (or RES): Reset Signal (Active LOW)
+ 1 DC (or D/C, RS, A0): Data/Command Selection (Low = Command, High = Data)
+21 CS: Chip Select Signal (Active LOW)
+17 BL (or BLK/LED): Backlight Control (3.3V/5V) 
+#endif
+
+
+
 static const char *TAG = "AMTR";
 
 /* I2C Configuration (configurable via menuconfig) */
@@ -211,7 +224,7 @@ void app_main(void)
 
     /* Create I2C master bus */
     ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_config, &i2c_bus_handle));
-
+#if 0
     /* Initialize U8G2 for display type */
 	u8g2_Setup_sh1107_i2c_128x128_f(
         &u8g2, U8G2_R0,
@@ -223,6 +236,7 @@ void app_main(void)
     u8g2_SetPowerSave(&u8g2, 0);  /* Wake up display */
 	u8g2_SetDisplayRotation(&u8g2, U8G2_R1);
 	u8g2_ClearBuffer(&u8g2);
+#endif
 
     //Define the i2c device configuration
     i2c_device_config_t dev_cfg = {
@@ -242,7 +256,7 @@ void app_main(void)
     i2c_master_bus_add_device(i2c_bus_handle, &dev_cfg, &Dev.platform.handle);
 
     /* (Optional) Reset sensor */
-    Dev.platform.reset_gpio = GPIO_NUM_18;
+    Dev.platform.reset_gpio = GPIO_NUM_16;
 
     Reset_Sensor(&(Dev.platform));
 
@@ -302,10 +316,11 @@ void app_main(void)
 		} while (!isReady);
 
 		vl53l8cx_get_ranging_data(&Dev, &Results);
+		ESP_LOGI(TAG, "working...");
 
-		mat_plot(Results);
+//		mat_plot(Results);
 
-		//vTaskDelay(pdMS_TO_TICKS(100));    /* delay for showing static display */
+		vTaskDelay(pdMS_TO_TICKS(5000));    /* delay for showing static display */
 	}
 }
 
