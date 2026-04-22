@@ -308,3 +308,4 @@ void app_main(void)
 		//vTaskDelay(pdMS_TO_TICKS(100));    /* delay for showing static display */
 	}
 }
+
